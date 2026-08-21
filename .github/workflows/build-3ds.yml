@@ -1,0 +1,61 @@
+name: build-3ds
+
+on:
+  push:
+    branches: [fix/o3ds-heap-panic]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest
+    env:
+      DEVKITPRO: /opt/devkitpro
+      DEVKITARM: /opt/devkitpro/devkitARM
+
+    steps:
+      - name: Checkout port
+        uses: actions/checkout@v4
+
+      - name: Install 3DS portlibs
+        run: dkp-pacman -Sy --noconfirm --needed 3ds-libpng 3ds-zlib || true
+
+      # nova_frame_begin/end were removed upstream on 2026-04-06,
+      # so pin to the last commit whose API matches main_ctr.h.
+      - name: Checkout NovaGL
+        uses: actions/checkout@v4
+        with:
+          repository: efimandreev0/NovaGL
+          ref: d4da9703133b961e988cac3e7965dfafe7fe0c37
+          path: _novagl
+
+      - name: Build and install NovaGL
+        run: |
+          set -x
+          cd _novagl
+          cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/3DS.cmake
+          cmake --build build -j$(nproc)
+          find build -name 'libNovaGL*.a' -exec cp -v {} $DEVKITPRO/portlibs/3ds/lib/ \;
+          cp -rv include/* $DEVKITPRO/portlibs/3ds/include/
+
+      - name: Build 3DS target
+        run: |
+          set -x
+          cmake -DPUBLISH=on -B build -S handheld/project/ctr
+          cmake --build build -j$(nproc)
+
+      - name: List build output
+        if: always()
+        run: find build -maxdepth 2 -type f \( -name '*.3dsx' -o -name '*.elf' -o -name '*.smdh' \) -exec ls -la {} \;
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraftpe-3ds
+          path: |
+            build/*.3dsx
+            build/*.elf
+            build/*.smdh
+          if-no-files-found: warn
