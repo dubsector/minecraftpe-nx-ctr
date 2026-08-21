@@ -13,10 +13,8 @@ jobs:
     env:
       DEVKITPRO: /opt/devkitpro
       DEVKITARM: /opt/devkitpro/devkitARM
-
     steps:
-      - name: Checkout port
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install 3DS portlibs
         run: dkp-pacman -Sy --noconfirm --needed 3ds-libpng 3ds-zlib || true
@@ -36,8 +34,6 @@ jobs:
           cd _novagl
           cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/3DS.cmake -DGL2CITRO3D_BUILD_EXAMPLES=OFF
           cmake --build build -j$(nproc)
-          find build -name 'libNovaGL*.a' -exec cp -v {} $DEVKITPRO/portlibs/3ds/lib/ \;
-          cp -rv include/* $DEVKITPRO/portlibs/3ds/include/
 
       - name: Build 3DS target
         run: |
@@ -45,56 +41,56 @@ jobs:
           cmake -DPUBLISH=on -B build -S handheld/project/ctr
           cmake --build build -j$(nproc)
 
-      - name: List build output
-        if: always()
-        run: find build -maxdepth 2 -type f \( -name '*.3dsx' -o -name '*.elf' -o -name '*.smdh' \) -exec ls -la {} \; || true
+      - name: Upload ELF and 3dsx
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctr-build
+          path: |
+            build/minecraftcpp.elf
+            build/minecraftcpp.3dsx
 
+  package-cia:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ctr-build
+          path: build
+
+      # makerom needs a newer glibc than the devkitPro image ships,
+      # so packaging runs on the plain runner.
       - name: Fetch CIA tooling
         run: |
           set -x
-          apt-get update -qq && apt-get install -y -qq curl unzip || true
           mkdir -p /tmp/tools && cd /tmp/tools
           curl -sfLO https://github.com/3DSGuy/Project_CTR/releases/download/makerom-v0.19.0/makerom-v0.19.0-ubuntu_x86_64.zip
           unzip -oq makerom-v0.19.0-ubuntu_x86_64.zip
           curl -sfLo bannertool.zip https://github.com/Epicpkmn11/bannertool/releases/download/v1.2.2/bannertool.zip
           unzip -oq bannertool.zip -d bt
-          find /tmp/tools -type f | head -30
 
       - name: Package CIA
         run: |
           set -x
           T=/tmp/tools
           CTR=handheld/project/ctr
-          MAKEROM=$(find $T -maxdepth 2 -type f -name 'makerom*' ! -name '*.zip' | head -1)
-          BT=$(find $T/bt -type f -name bannertool | grep -E 'linux-x86_64' | head -1)
-          [ -z "$BT" ] && BT=$(find $T/bt -type f -name bannertool | grep -i linux | head -1)
+          MAKEROM=$T/makerom
+          BT=$T/bt/linux-x86_64/bannertool
           chmod +x "$MAKEROM" "$BT"
           "$BT" makebanner -i $CTR/banner.png -a $CTR/audio.wav -o /tmp/banner.bnr
           "$BT" makesmdh -s "Minecraft PE" -l "Minecraft PE for 3DS" -p "efimandreev0" -i $CTR/icon.png -o /tmp/icon.icn
           mkdir -p romfs
-          "$MAKEROM" -f cia -o build/minecraftcpp.cia -elf build/minecraftcpp.elf             -rsf $CTR/app.rsf -icon /tmp/icon.icn -banner /tmp/banner.bnr             -exefslogo -target t
+          "$MAKEROM" -f cia -o build/minecraftcpp.cia -elf build/minecraftcpp.elf \
+            -rsf $CTR/app.rsf -icon /tmp/icon.icn -banner /tmp/banner.bnr \
+            -exefslogo -target t
           ls -la build/minecraftcpp.cia
 
-      - name: Probe CIA tooling
-        if: always()
-        run: |
-          echo "--- tools/bin ---"; ls $DEVKITPRO/tools/bin 2>/dev/null
-          echo "--- makerom? ---"; command -v makerom || echo NO_MAKEROM
-          echo "--- bannertool? ---"; command -v bannertool || echo NO_BANNERTOOL
-          echo "--- cmake ctr_ functions ---"
-          grep -rhoE "function\(ctr_[a-z_]+" $DEVKITPRO/cmake/*.cmake 2>/dev/null | sort -u
-          echo "--- pacman candidates ---"
-          dkp-pacman -Ss makerom 2>/dev/null | head -5
-          dkp-pacman -Ss 3dstools 2>/dev/null | head -5
-
-      - name: Upload
-        if: always()
+      - name: Upload CIA
         uses: actions/upload-artifact@v4
         with:
-          name: minecraftpe-3ds
+          name: minecraftpe-3ds-cia
           path: |
-            build/*.3dsx
-            build/*.cia
-            build/*.elf
-            build/*.smdh
-          if-no-files-found: warn
+            build/minecraftcpp.cia
+            build/minecraftcpp.3dsx
