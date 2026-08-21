@@ -1293,7 +1293,14 @@ void Minecraft::setSize(int w, int h) {
 #endif
     }
 	else if (width >= 400)
+#if defined(__3DS__)
+		// The 400x240 top screen lands exactly on this threshold. Scale 2
+		// leaves a 200x120 logical screen, narrower than a standard 200px
+		// button, so menus render edge to edge with no margin.
+		Gui::GuiScale = 1.0f;
+#else
 		Gui::GuiScale = 2.0f;
+#endif
 	else
 		Gui::GuiScale = 1.0f;
 
