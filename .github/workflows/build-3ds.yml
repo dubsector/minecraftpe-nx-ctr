@@ -49,6 +49,18 @@ jobs:
         if: always()
         run: find build -maxdepth 2 -type f \( -name '*.3dsx' -o -name '*.elf' -o -name '*.smdh' \) -exec ls -la {} \; || true
 
+      - name: Probe CIA tooling
+        if: always()
+        run: |
+          echo "--- tools/bin ---"; ls $DEVKITPRO/tools/bin 2>/dev/null
+          echo "--- makerom? ---"; command -v makerom || echo NO_MAKEROM
+          echo "--- bannertool? ---"; command -v bannertool || echo NO_BANNERTOOL
+          echo "--- cmake ctr_ functions ---"
+          grep -rhoE "function\(ctr_[a-z_]+" $DEVKITPRO/cmake/*.cmake 2>/dev/null | sort -u
+          echo "--- pacman candidates ---"
+          dkp-pacman -Ss makerom 2>/dev/null | head -5
+          dkp-pacman -Ss 3dstools 2>/dev/null | head -5
+
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
