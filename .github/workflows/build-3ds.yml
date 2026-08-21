@@ -34,7 +34,7 @@ jobs:
         run: |
           set -x
           cd _novagl
-          cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/3DS.cmake
+          cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/3DS.cmake -DGL2CITRO3D_BUILD_EXAMPLES=OFF
           cmake --build build -j$(nproc)
           find build -name 'libNovaGL*.a' -exec cp -v {} $DEVKITPRO/portlibs/3ds/lib/ \;
           cp -rv include/* $DEVKITPRO/portlibs/3ds/include/
@@ -47,7 +47,7 @@ jobs:
 
       - name: List build output
         if: always()
-        run: find build -maxdepth 2 -type f \( -name '*.3dsx' -o -name '*.elf' -o -name '*.smdh' \) -exec ls -la {} \;
+        run: find build -maxdepth 2 -type f \( -name '*.3dsx' -o -name '*.elf' -o -name '*.smdh' \) -exec ls -la {} \; || true
 
       - name: Upload
         if: always()
