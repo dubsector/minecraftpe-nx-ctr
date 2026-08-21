@@ -66,8 +66,8 @@ jobs:
           T=/tmp/tools
           CTR=handheld/project/ctr
           MAKEROM=$(find $T -maxdepth 2 -type f -name 'makerom*' ! -name '*.zip' | head -1)
-          BT=$(find $T/bt -type f | grep -iE 'linux' | head -1)
-          [ -z "$BT" ] && BT=$(find $T/bt -type f ! -name '*.zip' | head -1)
+          BT=$(find $T/bt -type f -name bannertool | grep -E 'linux-x86_64' | head -1)
+          [ -z "$BT" ] && BT=$(find $T/bt -type f -name bannertool | grep -i linux | head -1)
           chmod +x "$MAKEROM" "$BT"
           "$BT" makebanner -i $CTR/banner.png -a $CTR/audio.wav -o /tmp/banner.bnr
           "$BT" makesmdh -s "Minecraft PE" -l "Minecraft PE for 3DS" -p "efimandreev0" -i $CTR/icon.png -o /tmp/icon.icn
